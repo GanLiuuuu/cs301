@@ -85,3 +85,38 @@ This project implements an intelligent car control system, designed and develope
 - Use modular design for easy testing and debugging of individual components (communication, control, environment detection).
 - Keep your functions and variables well-documented, especially in hardware control modules like motor.c and ultrasonic.c.
 - For better maintainability, ensure that all magic numbers are defined as constants at the top of each file.
+
+
+- **Including HJduino Library**:  
+  To call motor control functions, include the `motor.h` header file in your source code. This header defines the necessary functions for controlling the motors and setting PWM speeds.
+
+  ```c
+  #include "motor.h"
+  ```
+  Motor Control: When working with motor functions, use the functions provided in the motor.c file. For example, to control the speed of a motor, you can call the SetMotorSpeed() or SetMotorSpeed2() function, depending on which motor you want to control. These functions set the speed of the left or right motors (for both motors in the front and back), and the direction can be controlled using positive or negative values for speed.
+  Example usage:
+  ```c
+  // Set speed of motor 1 to 50
+  SetMotorSpeed(1, 50);
+  // Set speed of motor 2 to -50 (reverse direction)
+  SetMotorSpeed2(1, -50);
+  ```
+  Initialization: For setting up PWM for the motors, you need to call the TIM4_PWM_Init() function with the appropriate parameters for arr (auto-reload value) and psc (prescaler). This function initializes the PWM configuration for motor control.
+  Example usage:
+  ```c
+  // Initialize PWM for motor control with specific values
+  TIM4_PWM_Init(1000, 72);  // arr = 1000, psc = 72
+  ```
+  Running Motors: To make the robot move forward, backward, turn left or right, or even brake, you can use the high-level functions like HJduino_run(), HJduino_back(), HJduino_left(), and others. These functions combine multiple motor speed adjustments and control functions to perform the desired movement.
+  Example usage for forward movement:
+  ```c
+  // Move forward with speed 80 for 1000 ms
+  HJduino_run(80, 1000);
+  ```
+  Braking and Stopping Motors: To stop or brake the motors, use the HJduino_brake() function, which will set all motor speeds to 0, effectively stopping the robot.
+  Example usage:
+  ```c
+  // Stop all motors after 500 ms
+  HJduino_brake(500);
+  ```
+- Module Integration: You can integrate other hardware modules like UltrasonicWave, remote, or IRSearch by including their respective header files and calling the appropriate functions defined within those modules. 
