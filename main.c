@@ -119,7 +119,7 @@ void draw_start_end(int x, int y, int start)
 
 extern gImage_barrier[3048];
 void set_barrier(int a, int b, int c, int d){
-	LCD_ShowPicture(a, b, 40, 40,(uint16_t*)gImage_barrier);
+	LCD_ShowPicture(a, b, 38, 40,(uint16_t*)gImage_barrier);
 	grid[c][d] = 1;
 	trans_grid[c][2*d] = a;
 	trans_grid[c][2*d+1] = b;
