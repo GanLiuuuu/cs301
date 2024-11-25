@@ -34,6 +34,7 @@
 #include "touch.h"
 #include "24cxx.h"
 #include "24l01.h" //通信驱动 基于spi进行通信
+#define BUTTON_COUNT 7
 //#include "remote.h" 红外遥控驱动
 /* USER CODE END Includes */
 
@@ -45,195 +46,80 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 unsigned char DATA_TO_SEND[800];
+int state_num = 0;
+typedef struct {
+    u16 x1, y1, x2, y2; // coordinate
+    char label[20];     //name
+} Button;
+Button lcd_buttons[BUTTON_COUNT] = {
+    {10, 10, 100, 40, "Forward"},
+    {10, 50, 100, 80, "Backward"},
+    {10, 90, 100, 120, "Left"},
+    {10, 130, 100, 160, "Right"},
+    {10, 170, 100, 200, "RotateL"},
+    {10, 230, 100, 260, "RotateR"},
+    {10, 270, 100, 300, "Stop"},
+};
+
 u8 STATE[30];
-
-// ****************************************************************************++++++++
-int grid[4][4] = {0};//useful data
-int trans_grid[4][8] = {0};
-int start_end_status[2] = {0, 0};
-int start_pos[2] = {-1, -1};
-int end_pos[2] = {-1, -1};
-int set_barrier_num = 0;
-int barrier_num = 0;
-
-int barrier_num_decision_switch = 0;
-int start_end_switch = 0;
-int set_or_reset_switch = 0;
-
-int xl = 30;
-int xr;
-int yt = 30;
-int yb;
-// ****************************************************************************---------
 UART_HandleTypeDef huart1;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-//清空屏幕并在右上角显"RST"
+////////////////////////////////////////////////////////////////////////////////
+//Button Methods
+void Draw_lcd_buttons(void) {
+    for (int i = 0; i < BUTTON_COUNT; i++) {
+        LCD_DrawRectangle(lcd_buttons[i].x1, lcd_buttons[i].y1, lcd_buttons[i].x2, lcd_buttons[i].y2);
+        LCD_ShowString(lcd_buttons[i].x1 + 5, lcd_buttons[i].y1 + 5, 200, 16, 16, lcd_buttons[i].label);
+    }
+}
+int Detect_Button(u16 x, u16 y) {
+    for (int i = 0; i < BUTTON_COUNT; i++) {
+        if (x >= lcd_buttons[i].x1 && x <= lcd_buttons[i].x2 && y >= lcd_buttons[i].y1 && y <= lcd_buttons[i].y2) {
+            return i; // index of the button
+        }
+    }
+    return -1;
+}
+void Handle_Button_Action(int buttonIndex) {
+    switch (buttonIndex) {
+        case 0:
+            LCD_ShowString(120, 10, 200, 16, 16, "Function 1");
+            break;
+        case 1:
+            LCD_ShowString(120, 60, 200, 16, 16, "Function 2");
+            break;
+        case 2:
+            LCD_ShowString(120, 110, 200, 16, 16, "Function 3");
+            break;
+        case 3:
+            LCD_ShowString(120, 160, 200, 16, 16, "Function 4");
+            break;
+        case 4:
+            LCD_ShowString(120, 210, 200, 16, 16, "Function 5");
+            break;
+        case 5:
+            LCD_ShowString(120, 260, 200, 16, 16, "Function 6");
+            break;
+        case 6:
+            LCD_ShowString(120, 310, 200, 16, 16, "Function 7");
+            break;
+        default:
+            break;
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+
+//清空屏幕并在右上角显�?"RST"
 void Load_Drow_Dialog(void)
 {
 	LCD_Clear(WHITE);//清屏
- 	POINT_COLOR=BLUE;//设置字体为蓝色
-	// LCD_ShowString(lcddev.width-24,0,200,16,16,"RST");//显示清屏区域
+ 	POINT_COLOR=BLUE;//设置字体为蓝�?
+	LCD_ShowString(lcddev.width-24,0,200,16,16,"RST");//显示清屏区域
   	POINT_COLOR=RED;//设置画笔蓝色
 }
-// ****************************************************************************++++++++
-void pic_table(void)
-{
-	int xr = lcddev.width-30;
-	int yb = (xr - xl) + 30;
-	int x_div = (xr - xl) / 4;
-	int x1 = xl + x_div;
-	int x2 = xl + 2*x_div;
-	int x3 = xl + 3*x_div;
-	int y1 = yt + x_div;
-	int y2 = yt + 2*x_div;
-	int y3 = yt + 3*x_div;
-
-	lcd_draw_bline(xl, yt, xl, yb, 2, BLACK);
-	lcd_draw_bline(x1, yt, x1, yb, 2, BLACK);
-	lcd_draw_bline(x2, yt, x2, yb, 2, BLACK);
-	lcd_draw_bline(x3, yt, x3, yb, 2, BLACK);
-	lcd_draw_bline(xr, yt, xr, yb, 2, BLACK);
-	lcd_draw_bline(xl, yt, xr, yt, 2, BLACK);
-	lcd_draw_bline(xl, y1, xr, y1, 2, BLACK);
-	lcd_draw_bline(xl, y2, xr, y2, 2, BLACK);
-	lcd_draw_bline(xl, y3, xr, y3, 2, BLACK);
-	lcd_draw_bline(xl, yb, xr, yb, 2, BLACK);
-}
-
-void draw_start_end(int x, int y, int start)
-{
-	POINT_COLOR=RED;
-	if(start){
-		start_pos[0] = x;
-		start_pos[1] = y;
-		LCD_ShowString(x,y,200,16,16,"START");
-	}else{
-		end_pos[0] = x;
-		end_pos[1] = y;
-		LCD_ShowString(x,y,200,16,16,"END");
-	}
-}
-
-extern gImage_barrier[3048];
-void set_barrier(int a, int b, int c, int d){
-	LCD_ShowPicture(a, b, 38, 40,(uint16_t*)gImage_barrier);
-	grid[c][d] = 1;
-	trans_grid[c][2*d] = a;
-	trans_grid[c][2*d+1] = b;
-	barrier_num += 1;
-}
-void draw_barrier(int x, int y, int mode)
-{
-	int xr = lcddev.width-30;
-	int yb = (xr - xl) + 30;
-	int x_div = (xr - xl) / 4;
-	int x1 = xl + x_div;
-	int x2 = xl + 2*x_div;
-	int x3 = xl + 3*x_div;
-	int y1 = yt + x_div;
-	int y2 = yt + 2*x_div;
-	int y3 = yt + 3*x_div;
-	if(mode){
-		for(int i = 0; i < 4; i++){
-			for(int j = 0; j < 4; j++){
-				if(grid[i][j] != 0){
-					set_barrier(trans_grid[i][2*j],trans_grid[i][2*j+1],i,j);
-				}
-			}
-		}
-	}else{
-		if(x > xl && x < x1 && y > yt && y < y1){
-			set_barrier(xl, yt, 0, 0);
-		}else if(x > x1 && x < x2 && y > yt && y < y1){
-			set_barrier(x1, yt, 0, 1);
-		}else if(x > x2 && x < x3 && y > yt && y < y1){
-			set_barrier(x2, yt, 0, 2);
-		}else if(x > x3 && x < xr && y > yt && y < y1){
-			set_barrier(x3, yt, 0, 3);
-		}else if(x > xl && x < x1 && y > y1 && y < y2){
-			set_barrier(xl, y1, 1, 0);
-		}else if(x > x1 && x < x2 && y > y1 && y < y2){
-			set_barrier(x1, y1, 1, 1);
-		}else if(x > x2 && x < x3 && y > y1 && y < y2){
-			set_barrier(x2, y1, 1, 2);
-		}else if(x > x3 && x < xr && y > y1 && y < y2){
-			set_barrier(x3, y1, 1, 3);
-		}else if(x > xl && x < x1 && y > y2 && y < y3){
-			set_barrier(xl, y2, 2, 0);
-		}else if(x > x1 && x < x2 && y > y2 && y < y3){
-			set_barrier(x1, y2, 2, 1);
-		}else if(x > x2 && x < x3 && y > y2 && y < y3){
-			set_barrier(x2, y2, 2, 2);
-		}else if(x > x3 && x < xr && y > y2 && y < y3){
-			set_barrier(x3, y2, 2, 3);
-		}else if(x > xl && x < x1 && y > y3 && y < yb){
-			set_barrier(xl, y3, 3, 0);
-		}else if(x > x1 && x < x2 && y > y3 && y < yb){
-			set_barrier(x1, y3, 3, 1);
-		}else if(x > x2 && x < x3 && y > y3 && y < yb){
-			set_barrier(x2, y3, 3, 2);
-		}else if(x > x3 && x < xr && y > y3 && y < yb){
-			set_barrier(x3, y3, 3, 3);
-		}
-	}
-}
-
-void reset_grid(){
-	for(int i = 0; i< 4; i++){
-		for(int j = 0; j<4; j++){
-			grid[i][j] = 0;
-		}
-	}
-}
-
-void draw_choice_buttons()
-{
-	int xr = lcddev.width-30;
-	int xlb = 20;
-	int xrb = lcddev.width-20;
-	int ytb = (xr - xl) + 30;
-	int ybb = lcddev.height;
-
-	int x_dis = (xrb - xlb) / 2;
-	int y_second = (ybb - ytb) / 2 + ytb + 20;
-	int y_first = (ybb - y_second) / 2 + ytb;
-	int wid = 40;
-	int len = 80;
-
-	POINT_COLOR=RED;
-	LCD_DrawRectangle(xlb, y_first, xlb + len, y_first + wid);
-	//LCD_Fill(xlb, y_first, xlb + len, y_first + wid, BROWN);
-	LCD_ShowString(xlb + 20,y_first + wid/2 - 12,200,24,24,"BEF");
-
-	LCD_DrawRectangle(xlb + x_dis, y_first, xlb + x_dis + len, y_first + wid);
-	//LCD_Fill(xlb + x_dis, y_first, xlb + x_dis + len, y_first + wid, BROWN);
-	LCD_ShowString(xlb + x_dis + 20,y_first + wid/2 - 12,200,24,24,"NEX");
-
-	LCD_DrawRectangle(xlb, y_second, xlb + len, y_second + wid);
-	//LCD_Fill(xlb + x_dis, y_second, xlb + x_dis + len, y_second + wid, BROWN);
-	LCD_ShowString(xlb + 20,y_second + wid/2 - 12,200,24,24,"SE");
-
-	LCD_DrawRectangle(xlb + x_dis, y_second, xlb + x_dis + len, y_second + wid);
-	//LCD_Fill(xlb + x_dis, y_second, xlb + x_dis + len, y_second + wid, BROWN);
-	LCD_ShowString(xlb + x_dis + 20,y_second + wid/2 - 12,200,24,24,"BB");
-
-}
-
-void barrier_num_decision()
-{
-	/*利用方法画三个圆，并在上面显示既定数字，并设置set_barrier_num*/
-	int xr = lcddev.width-30;
-	int dia = (xr - xl) / 3;
-	barrier_num_decision_switch = 1;
-	LCD_Fill(xl, 100, xl + dia-10, 100 + dia-10, GREEN);
-	LCD_Fill(xl + dia, 100, xl + 2*dia-10, 100 + dia-10, YELLOW);
-	LCD_Fill(xl + 2*dia, 100, xl + 3*dia-10, 100 + dia-10, RED);
-}
-
-// ****************************************************************************---------
 ////////////////////////////////////////////////////////////////////////////////
 //电容触摸屏专有部�?
 //画水平线
@@ -284,58 +170,39 @@ u16 my_abs(u16 x1,u16 x2)
 //(x1,y1),(x2,y2):线条的起始坐�?
 //size：线条的粗细程度
 //color：线条的颜色
-// ****************************************************************************++++++++
-char num_str[10];
-char status_str[10];
+
 void screen_print(){
 	LCD_Clear(WHITE);//清屏
-	pic_table();
-	POINT_COLOR=RED;
-	if (set_barrier_num != 0){
-		// 调用 LCD_ShowString 显示字符串
-		LCD_ShowString(lcddev.width - 50, 3, 200, 24, 24, (uint8_t *)num_str);
-	}else{
-		LCD_ShowString(lcddev.width - 50,3,200,24,24,"BB:N");
-	}
-	if (start_end_switch){
-		LCD_ShowString(5,3,200,24,24,"SE:Y");
-	}else{
-		LCD_ShowString(5,3,200,24,24,"SE:N");
-	}
-	draw_barrier(0,0,1);
-	if(start_pos[0]!=-1){
-		LCD_ShowString(start_pos[0],start_pos[1],200,16,16,"START");
-		LCD_ShowString(end_pos[0],end_pos[1],200,16,16,"END");
-	}
-	draw_choice_buttons();
+	POINT_COLOR=BLUE;//设置字体为蓝色
+	LCD_ShowString(lcddev.width-24,0,200,16,16,"RST");//显示清屏区域
+	LCD_ShowString(0,0,200,24,24, "SHOW PICTURE");
+	LCD_ShowString(60,60,200,24,24, "SEND MESSAGE");
+	LCD_ShowString(0, lcddev.height-24, 200, 16, 16, STATE);
+	POINT_COLOR=RED;//设置画笔为红色
+
 }
 
-/*按钮的位置设置，4*4初始化，*/
 
 void screen_norm_print(){
 //	LCD_Clear(WHITE);//清屏
-	if(!barrier_num_decision_switch){
-		pic_table();
-	}
-	POINT_COLOR=RED;
-	if (set_barrier_num != 0){
-		// 调用 LCD_ShowString 显示字符串
-		LCD_ShowString(lcddev.width - 50, 3, 200, 24, 24, (uint8_t *)num_str);
-	}else{
-		LCD_ShowString(lcddev.width - 50,3,200,24,24,"BB:N");
-	}
-	if (start_end_switch){
-		LCD_ShowString(5,3,200,24,24,"SE:Y");
-	}else{
-		LCD_ShowString(5,3,200,24,24,"SE:N");
-	}
-	draw_choice_buttons();
+	POINT_COLOR=BLUE;//设置字体为蓝色
+	LCD_ShowString(lcddev.width-24,0,200,16,16,"RST");//显示清屏区域
+	LCD_ShowString(0,0,200,24,24, "SHOW PICTURE");
+	LCD_ShowString(60,60,200,24,24, "SEND MESSAGE");
+	LCD_ShowString(0, lcddev.height-24, 200, 16, 16, STATE);
+	POINT_COLOR=RED;//设置画笔为红色
+
 }
 
-void update_num_str() {
-    sprintf(num_str, "BB:%d", set_barrier_num); // 更新字符串
+void change_state(){
+	if(state_num == 0){
+		state_num = 1;
+		sprintf(STATE, "STATE: ON");
+	}else{
+		state_num = 0;
+		sprintf(STATE, "STATE: OFF");
+	}
 }
-// ****************************************************************************---------
 
 void lcd_draw_bline(u16 x1, u16 y1, u16 x2, u16 y2,u8 size,u16 color)
 {
@@ -348,12 +215,12 @@ void lcd_draw_bline(u16 x1, u16 y1, u16 x2, u16 y2,u8 size,u16 color)
 	uRow=x1;
 	uCol=y1;
 	if(delta_x>0)incx=1; //设置单步方向
-	else if(delta_x==0)incx=0;//垂直
+	else if(delta_x==0)incx=0;//垂直�?
 	else {incx=-1;delta_x=-delta_x;}
 	if(delta_y>0)incy=1;
-	else if(delta_y==0)incy=0;//水平
+	else if(delta_y==0)incy=0;//水平�?
 	else{incy=-1;delta_y=-delta_y;}
-	if( delta_x>delta_y)distance=delta_x; //选取基本增量坐标
+	if( delta_x>delta_y)distance=delta_x; //选取基本增量坐标�?
 	else distance=delta_y;
 	for(t=0;t<=distance+1;t++ )//画线输出
 	{
@@ -375,35 +242,11 @@ void lcd_draw_bline(u16 x1, u16 y1, u16 x2, u16 y2,u8 size,u16 color)
 ////////////////////////////////////////////////////////////////////////////////
 //5个触控点的颜�?(电容触摸屏用)
 const u16 POINT_COLOR_TBL[5]={RED,GREEN,BLUE,BROWN,GRED};
-// ****************************************************************************++++++++
-extern gImage_test[7208];
 //电阻触摸屏测试函�?
-/*按钮的设置和点击逻辑*/
 void rtp_test(void)
 {
 	u8 key;
 	u8 i=0;
-	int xr = lcddev.width-30;
-	int yb = (xr - xl) + 30;
-	int x_div = (xr - xl) / 4;
-	int x1 = xl + x_div;
-	int x2 = xl + 2*x_div;
-	int x3 = xl + 3*x_div;
-	int y1 = yt + x_div;
-	int y2 = yt + 2*x_div;
-	int y3 = yt + 3*x_div;
-
-	int xlb = 20;
-	int xrb = lcddev.width-20;
-	int ytb = (xr - xl) + 30;
-	int ybb = lcddev.height;
-	int x_dis = (xrb - xlb) / 2;
-	int y_second = (ybb - ytb) / 2 + ytb + 20;
-	int y_first = (ybb - y_second) / 2 + ytb;
-	int wid = 40;
-	int len = 80;
-
-	int dia = (xr - xl) / 3;
 	while(1)
 	{
 	 	key=KEY_Scan(0);
@@ -411,52 +254,15 @@ void rtp_test(void)
 		screen_norm_print();
 		if(tp_dev.sta&TP_PRES_DOWN)			//触摸屏被按下
 		{
-			if(tp_dev.x[0]>(xlb + x_dis) && tp_dev.x[0]<(xlb + x_dis + len) &&
-		 				tp_dev.y[0]>y_second && tp_dev.y[0]<y_second + wid){
-		 			barrier_num_decision();
-		 			reset_grid();
-		 	}else if(barrier_num_decision_switch && !start_end_switch){
-		 		if(tp_dev.x[0] > xl && tp_dev.x[0] < (xl + dia) &&
-		 					tp_dev.y[0] > 100 && tp_dev.y[0] < 100 + dia){
-		 				set_barrier_num = 3;
-		 				barrier_num = 0;
-		 				update_num_str();
-		 				barrier_num_decision_switch = 0;
-		 				screen_print();
-		 		}else if(tp_dev.x[0] > xl + dia && tp_dev.x[0] < (xl + 2*dia) &&
-		 					tp_dev.y[0] > 100 && tp_dev.y[0] < 100 + dia){
-		 				set_barrier_num = 4;
-		 				barrier_num = 0;
-		 				update_num_str();
-		 				barrier_num_decision_switch = 0;
-		 				screen_print();
-		 		}else if(tp_dev.x[0] > xl + 2*dia && tp_dev.x[0] < (xl + 3*dia) &&
-		 					tp_dev.y[0] > 100 && tp_dev.y[0] < 100 + dia){
-		 				set_barrier_num = 5;
-		 				barrier_num = 0;
-		 				update_num_str();
-		 				barrier_num_decision_switch = 0;
-		 				screen_print();
-		 		}
-		 	}else if(set_barrier_num!=0 && barrier_num < set_barrier_num){
-		 		barrier_num_decision_switch = 0;
-		 		draw_barrier(tp_dev.x[0], tp_dev.y[0], 0);
-		 	}else if(tp_dev.x[0]>xlb && tp_dev.x[0]<(xlb + len) &&
-		 			tp_dev.y[0]>y_second && tp_dev.y[0]<y_second + wid){
-		 		start_pos[0] = -1;
-		 		end_pos[0] = -1;
-		 		start_end_switch = 1;
-		 		screen_print();
-		 	}else if(start_end_switch){
-		 		if(start_pos[0] == -1){
-		 			draw_start_end(tp_dev.x[0], tp_dev.y[0], 1);
-		 		}else if(end_pos[0] == -1){
-		 			draw_start_end(tp_dev.x[0], tp_dev.y[0], 0);
-		 		}
-		 		if(start_pos[0] != -1 && end_pos[0] != -1){
-		 			start_end_switch = 0;
-		 		}
-		 	}
+		 	if(tp_dev.x[0]<lcddev.width&&tp_dev.y[0]<lcddev.height)
+			{
+				u16 x = tp_dev.x[0];
+        u16 y = tp_dev.y[0];
+        int buttonIndex = Detect_Button(x, y);
+        if (buttonIndex != -1) {
+            Handle_Button_Action(buttonIndex);
+        }
+			}
 		}else delay_ms(10);	//没有按键按下的时�?
 		if(key==KEY0_PRES)	//KEY0按下,则执行校准程�?
 		{
@@ -469,7 +275,6 @@ void rtp_test(void)
 		if(i%20==0)LED0=!LED0;
 	}
 }
-// ****************************************************************************---------
 //电容触摸屏测试函�?
 void ctp_test(void)
 {
@@ -530,8 +335,6 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-/*选择数字障碍物个数*/
-
 
 /* USER CODE END 0 */
 
@@ -552,11 +355,11 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   Stm32_Clock_Init(RCC_PLL_MUL9);   	//设置时钟,72M
-	delay_init(72);               		//初始化延时函数
-//	uart_init(115200);					//初始化串口
+	delay_init(72);               		//初始化延时函�?
+//	uart_init(115200);					//初始化串�?
 //	usmart_dev.init(84); 		  	  	//初始化USMART
 	LED_Init();							//初始化LED
-	KEY_Init();							//初始化按键
+	KEY_Init();							//初始化按�?
 	LCD_Init();							//初始化LCD
 	tp_dev.init();				   		//触摸屏初始化
   /* USER CODE END Init */
@@ -575,7 +378,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   POINT_COLOR=RED;
   	LCD_ShowString(30,50,200,16,16,"Mini STM32");
-  	LCD_ShowString(30,70,200,16,16,"LCD显示场地与编辑");
+  	LCD_ShowString(30,70,200,16,16,"TOUCH TEST");
   	LCD_ShowString(30,90,200,16,16,"ATOM@ALIENTEK");
   	LCD_ShowString(30,110,200,16,16,"2019/11/15");
      	if(tp_dev.touchtype!=0XFF)
