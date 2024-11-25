@@ -24,6 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "motor.h"
 #include "sys.h"
 #include "delay.h"
 //#include "usart.h"
@@ -57,8 +58,8 @@ Button lcd_buttons[BUTTON_COUNT] = {
     {10, 90, 100, 120, "Left"},
     {10, 130, 100, 160, "Right"},
     {10, 170, 100, 200, "RotateL"},
-    {10, 230, 100, 260, "RotateR"},
-    {10, 270, 100, 300, "Stop"},
+    {10, 210, 100, 240, "RotateR"},
+    {10, 250, 100, 280, "Stop"},
 };
 
 u8 STATE[30];
@@ -86,25 +87,25 @@ int Detect_Button(u16 x, u16 y) {
 void Handle_Button_Action(int buttonIndex) {
     switch (buttonIndex) {
         case 0:
-            LCD_ShowString(120, 10, 200, 16, 16, "Function 1");
+            HJduino_run(70,3000);
             break;
         case 1:
-            LCD_ShowString(120, 60, 200, 16, 16, "Function 2");
+			      HJduino_back(70,1000);
             break;
         case 2:
-            LCD_ShowString(120, 110, 200, 16, 16, "Function 3");
+            HJduino_HJ_ZE_L(0);
             break;
         case 3:
-            LCD_ShowString(120, 160, 200, 16, 16, "Function 4");
+            HJduino_HJ_ZE_R(0);
             break;
         case 4:
-            LCD_ShowString(120, 210, 200, 16, 16, "Function 5");
+            HJduino_Left(70,1000);
             break;
         case 5:
-            LCD_ShowString(120, 260, 200, 16, 16, "Function 6");
+            HJduino_Right(70,1000);
             break;
         case 6:
-            LCD_ShowString(120, 310, 200, 16, 16, "Function 7");
+            HJduino_brake(500);
             break;
         default:
             break;
@@ -251,7 +252,7 @@ void rtp_test(void)
 	{
 	 	key=KEY_Scan(0);
 		tp_dev.scan(0);
-		screen_norm_print();
+		Draw_lcd_buttons();
 		if(tp_dev.sta&TP_PRES_DOWN)			//触摸屏被按下
 		{
 		 	if(tp_dev.x[0]<lcddev.width&&tp_dev.y[0]<lcddev.height)
