@@ -14,6 +14,7 @@ const int PATH_MATRIX[4][4] = {
     {0, 0, 1, 0},
     {0, 0, 1, 1}
 };
+int visited[4][4] = {0};  // 已访问
 
 typedef enum {
     NORTH = 0,
@@ -25,14 +26,14 @@ typedef enum {
 void getNextPoint(int current_x, int current_y, int *next_x, int *next_y) {
     const int dx[] = {0, 1, 0, -1}; 
     const int dy[] = {-1, 0, 1, 0};
-    int i;  // 将变量声明移到函数开始处
+    int i;
     
     for(i = 0; i < 4; i++) {
         int new_x = current_x + dx[i];
         int new_y = current_y + dy[i];
         
         if(new_x >= 0 && new_x < 4 && new_y >= 0 && new_y < 4 && 
-           PATH_MATRIX[new_y][new_x] == 1) {
+           PATH_MATRIX[new_y][new_x] == 1 && !visited[new_y][new_x]) {  // 检查是否已访问
             *next_x = new_x;
             *next_y = new_y;
             return;
@@ -61,7 +62,18 @@ void followPath(void) {
     int current_x = 0;
     int current_y = 1;  // 起始位置
     Direction current_direction = NORTH;  // 初始朝向
-    Direction target_direction;  // 将声明移到函数开始处
+    Direction target_direction;
+    int i, j;  // 将变量声明移到函数开始处which is required by C89 Standard
+
+    // 重置visited数组
+    for(i = 0; i < 4; i++) {
+        for(j = 0; j < 4; j++) {
+            visited[i][j] = 0;
+        }
+    }
+    
+    // 标记起始位置为已访问
+    visited[current_y][current_x] = 1;
     
     while(1) {
         int next_x, next_y;
@@ -71,6 +83,9 @@ void followPath(void) {
         if(next_x == current_x && next_y == current_y) {
             break;
         }
+        
+        // 标记下一个点为已访问
+        visited[next_y][next_x] = 1;
         
         ////////////////
         //rotate////////
