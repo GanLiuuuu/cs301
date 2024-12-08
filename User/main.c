@@ -48,11 +48,11 @@ void getNextPoint(int current_x, int current_y, int *next_x, int *next_y) {
 void rotateToDirection(Direction current, Direction target, int speed) {
     int diff = (target - current + 4) % 4;
     if(diff == 1 || diff == -3) {  // right 90 degree
-        HJduino_Spin_Right(speed, 500);
+        HJduino_Spin_Right(speed, 484);
     } else if(diff == 2) {  // 180 degree
-        HJduino_Spin_Right(speed, 1000);
+        HJduino_Spin_Right(speed, 968);
     } else if(diff == 3 || diff == -1) {  // left 90 degree
-        HJduino_Spin_Left(speed, 500);
+        HJduino_Spin_Left(speed, 484);
     }
     HJduino_brake(200);
 }
@@ -101,7 +101,7 @@ void followPath(void) {
         ////////////////
         //forward///////
         ////////////////
-        HJduino_run(70, 1000);
+        HJduino_run(70, 2077);
         HJduino_brake(200);
         
         current_x = next_x;
